@@ -39,7 +39,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'; 
+import { ref, onMounted, onUnmounted } from 'vue'; 
 import axios from 'axios';
 
 const tickets = ref([]);
@@ -55,6 +55,17 @@ const fetchTickets = async () => {
     loading.value = false;
   }
 };
+
+const listenForTickets = () => {
+  window.Echo.channel('tickets-channel') 
+    .listen('.ticket.created', (e) => {  
+      console.log("¡Nuevo ticket recibido por WebSockets!", e.ticket);
+      
+     
+      tickets.value.unshift(e.ticket);
+    });
+};
+
 
 const priorityClass = (priority) => {
   return {
@@ -79,7 +90,13 @@ const formatDate = (dateString) => {
 
 onMounted(() => {
   fetchTickets();
+  listenForTickets();
 });
+
+onUnmounted(()=>{
+  window.Echo.leaveChannel("tickets-channel");
+})
+
 </script>
 
 <style scoped>
