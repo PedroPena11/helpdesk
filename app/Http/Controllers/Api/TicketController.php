@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Ticket;
 use Illuminate\Http\Request;
+use App\Events\TicketCreated;
 
 class TicketController extends Controller
 {
@@ -35,6 +36,8 @@ class TicketController extends Controller
             'priority' => $validated['priority'],
             'client_id' => 1, //Id de Prueba
         ]);
+
+        broadcast(new TicketCreated($ticket))->toOthers();
 
         return response()->json([
             'message' => 'Ticket creado exitosamente',
