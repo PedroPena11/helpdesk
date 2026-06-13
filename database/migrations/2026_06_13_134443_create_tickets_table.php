@@ -13,6 +13,15 @@ return new class extends Migration
     {
         Schema::create('tickets', function (Blueprint $table) {
             $table->id();
+            $table->string('title');
+            $table->text('description');
+            $table->enum('status',['abierto','en_progreso','resuelto','cerrado'])->default('abierto');
+            $table->enum('priority',['baja','media','alta','critica'])->default('media');
+            
+            $table->foreignId('client_id')->constrained('users')->onDelete('cascade');
+
+            $table->foreignId('technician_id')->nullable()->constrained('users')->onDelete("set null");
+
             $table->timestamps();
         });
     }
