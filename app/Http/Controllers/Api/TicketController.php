@@ -3,24 +3,44 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Ticket;
 use Illuminate\Http\Request;
 
 class TicketController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * Mostrar la lista de clientes
      */
     public function index()
     {
-        //
+        $tickets = Ticket::with(['client','technician'])->latest()->get();
+
+        return response()->json($tickets,200);
     }
 
     /**
-     * Store a newly created resource in storage.
+     * Crear nuevo ticket en la base de datos
      */
     public function store(Request $request)
     {
-        //
+        $validated = $request->validate([
+            'title' => 'required|string|max:255',
+            'description' => 'required|string',
+            'priority' => 'required|in:baja,media,alta,critica',
+        ]);
+
+        $ticket = Ticket::create([
+            'title' => $validated['title'],
+            'description' => $validated['description'],
+            'priority' => $validated['priority'],
+            'client_id' => 1, //Id de Prueba
+        ]);
+
+        return response()->json([
+            'message' => 'Ticket creado exitosamente',
+            'ticket' => $ticket
+        ],201);
+
     }
 
     /**
