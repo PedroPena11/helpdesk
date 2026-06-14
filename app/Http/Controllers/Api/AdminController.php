@@ -10,27 +10,6 @@ use Illuminate\Support\Facades\Hash;
 
 class AdminController extends Controller
 {
-    public function storeUser(Request $request)
-    {
-        $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users',
-            'password' => 'required|string|min:6',
-            'role' => 'required|in:admin,agent,client', 
-        ]);
-
-        $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
-            'role' => $request->role,
-        ]);
-
-        return response()->json([
-            'message' => 'Usuario creado exitosamente con el rol de: ' . $user->role,
-            'user' => $user
-        ], 201);
-    }
 
     public function assignTicket(Request $request, $id)
 {
@@ -72,4 +51,27 @@ class AdminController extends Controller
         
         return response()->json($technicians,200);
     }
+
+    public function storeUser(Request $request)
+{
+    $request->validate([
+        'name' => 'required|string|max:255',
+        'email' => 'required|string|email|max:255|unique:users',
+        'password' => 'required|string|min:6',
+        'role' => 'required|in:admin,agent,client',
+    ]);
+
+    $user = User::create([
+        'name' => $request->name,
+        'email' => $request->email,
+        'password' => Hash::make($request->password), 
+        'role' => $request->role,
+    ]);
+
+    return response()->json([
+        'message' => 'Usuario creado exitosamente en el sistema.',
+        'user' => $user
+    ], 201);
+}
+
 }
