@@ -64,4 +64,12 @@ class AdminController extends Controller
         'ticket' => $ticket
     ], 200);
 }
+
+    public function getTechnicians(){
+        $technicians = User::where('role','agent')
+        ->select('id','name','email')
+        ->get();
+        
+        return response()->json($technicians,200);
+    }
 }

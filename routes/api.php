@@ -13,6 +13,7 @@ Route::middleware('auth:sanctum')->group(function(){
     Route::post('/logout',[AuthController::class,'logout']);
     Route::middleware('role:admin')->group(function(){
         Route::post('/admin/users',[AdminController::class,'storeUser']);
+        Route::get('/admin/technicians',[AdminController::class,'getTechnicians']);
         Route::post('/admin/tickets/{ticket}/assign',[AdminController::class,'assignTicket']);
     });
 });
