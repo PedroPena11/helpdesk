@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Events\TicketAssigned;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\Ticket;
@@ -35,8 +36,13 @@ class AdminController extends Controller
     if ($ticket->status === 'abierto') {
         $ticket->status = 'en_progreso';
     }
-    
+
     $ticket->save();
+
+    $ticket->load(['client','technician']);
+
+    broadcast(new TicketAssigned($ticket))->toOthers();
+    
 
     return response()->json([
         'message' => 'Ticket asignado correctamente al técnico: ' . $technician->name,

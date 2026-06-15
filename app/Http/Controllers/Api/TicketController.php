@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Ticket;
 use Illuminate\Http\Request;
 use App\Events\TicketCreated;
+use Illuminate\Support\Facades\Auth;
 
 class TicketController extends Controller
 {
@@ -14,7 +15,7 @@ class TicketController extends Controller
      */
     public function index()
     {
-        $tickets = Ticket::with(['client','technician'])->latest()->get();
+        $tickets = Ticket::with(['client','technician'])->orderBy('created_at','desc')->get();
 
         return response()->json($tickets,200);
     }
@@ -34,8 +35,11 @@ class TicketController extends Controller
             'title' => $validated['title'],
             'description' => $validated['description'],
             'priority' => $validated['priority'],
-            'client_id' => 1, //Id de Prueba
+            'client_id' => $request->user()->id,
+            'status' => 'abierto',
         ]);
+
+        $ticket->load('client');
 
         broadcast(new TicketCreated($ticket))->toOthers();
 
