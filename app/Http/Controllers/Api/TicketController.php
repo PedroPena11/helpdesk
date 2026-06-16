@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Events\TicketCompleted;
 use App\Http\Controllers\Controller;
 use App\Models\Ticket;
 use Illuminate\Http\Request;
@@ -13,9 +14,19 @@ class TicketController extends Controller
     /**
      * Mostrar la lista de clientes
      */
-    public function index()
+    public function index(Request $request)
     {
-        $tickets = Ticket::with(['client','technician'])->orderBy('created_at','desc')->get();
+        $user = $request->user();
+
+        $query = Ticket::with(['client','technician'])->orderBy('created_at','desc');
+
+        if($user->role === 'agent'){
+            $query->where('technician_id', $user->id);
+        }
+
+        if ($user->role === 'client') { $query->where('client_id', $user->id); }
+
+        $tickets = $query->get();
 
         return response()->json($tickets,200);
     }
@@ -49,6 +60,32 @@ class TicketController extends Controller
         ],201);
 
     }
+
+    public function complete(Request $request, $id){
+        $user = $request->user();
+        $ticket = Ticket::findOrFail($id);
+
+        if ($user->role === 'agent' && $ticket->technician_id !== $user->id) {
+        return response()->json([
+            'message' => 'No autorizado. Este ticket no está asignado a ti.'
+        ], 403);
+    }
+
+    $ticket->status = 'resuelto';
+    $ticket->save();
+
+    $ticket->load(['client', 'technician']);
+
+    broadcast(new TicketCompleted($ticket))->toOthers();
+
+    return response()->json([
+        'message' => '¡Excelente! El ticket ha sido marcado como completado.',
+        'ticket' => $ticket
+    ], 200);
+
+
+    }
+
 
     /**
      * Display the specified resource.
