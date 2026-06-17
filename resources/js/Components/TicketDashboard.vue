@@ -11,14 +11,14 @@
       </button>
 
       <div class="d-flex flex-column align-items-center text-light small ms-3">
-  <span class="fw-bold">
-    {{ userData ? userData.name : 'Cargando...' }}
-  </span>
-  
-  <span class="badge bg-secondary font-monospace text-capitalize" style="font-size: 0.65rem; margin-top: 2px;">
-    {{ role === 'agent' ? 'Técnico' : role }}
-  </span>
-</div>
+        <span class="fw-bold">
+          {{ userData ? userData.name : 'Cargando...' }}
+        </span>
+
+        <span class="badge bg-secondary font-monospace text-capitalize" style="font-size: 0.65rem; margin-top: 2px;">
+          {{ role === 'agent' ? 'Técnico' : role }}
+        </span>
+      </div>
 
       <div class="collapse navbar-collapse" id="navbarContent">
         <ul class="navbar-nav me-auto mb-2 mb-lg-0"></ul>
@@ -39,9 +39,9 @@
 
 
           <button class="btn btn-outline-danger btn-sm fw-bold d-flex align-items-center gap-1 px-2"
-                title="Cerrar Sesión" @click="handleLogout">
-                🚪 <span class="d-none d-md-inline">Salir</span>
-              </button>
+            title="Cerrar Sesión" @click="handleLogout">
+            🚪 <span class="d-none d-md-inline">Salir</span>
+          </button>
 
         </div>
       </div>
@@ -197,19 +197,29 @@
               <div class="card-body scrollable-column bg-light text-center py-2">
                 <div class="list-group list-group-flush">
 
-                  <template v-for="ticket in tickets" :key="ticket.id">
-                    <div v-if="ticket.status === 'resuelto'"
-                      class="list-group-item bg-white border-0 shadow-sm rounded mb-2 p-3 text-start border-start border-success border-3">
-                      <div class="fw-bold text-dark text-truncate">{{ ticket.title }}</div>
-                      <div class="d-flex justify-content-between align-items-center mt-1">
-                        <small class="text-muted">👤 {{ ticket.client ? ticket.client.name : 'Cliente' }}</small>
-                        <small class="text-success font-monospace" style="font-size: 0.75rem;">Resuelto ✓</small>
-                      </div>
-                      <div v-if="ticket.resolved_at" class="text-secondary mt-1" style="font-size: 0.7rem;">
-                        🏁 <strong>Finalizado:</strong> {{ formatDateTime(ticket.resolved_at) }}
-                      </div>
-                    </div>
-                  </template>
+                 
+
+                        <div v-for="ticket in completedTicketsOrdered" :key="ticket.id"
+                          class="list-group-item bg-white border-0 shadow-sm rounded mb-2 p-3 text-start border-start border-success border-3 animate-fade-in">
+
+                          <div class="fw-bold text-dark text-truncate">{{ ticket.title }}</div>
+
+                          <div class="d-flex justify-content-between align-items-center mt-1">
+                            <small class="text-muted">👤 {{ ticket.client ? ticket.client.name : 'Cliente' }}</small>
+                            <small class="text-success font-monospace" style="font-size: 0.75rem;">Resuelto ✓</small>
+                          </div>
+
+                          <div v-if="ticket.resolved_at" class="text-secondary mt-1" style="font-size: 0.7rem;">
+                            🏁 <strong>Finalizado:</strong> {{ formatDateTime(ticket.resolved_at) }}
+                          </div>
+
+                        </div>
+
+                        <div v-if="completedTicketsOrdered.length === 0" class="text-muted py-5 small">
+                          No hay tareas completadas en este ciclo.
+                        </div>
+
+                      
 
                   <div v-if="!tickets.some(t => t.status === 'resuelto')" class="text-muted py-5 small">
                     No hay tareas completadas en este ciclo.
@@ -291,7 +301,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, computed, onUnmounted } from 'vue';
 import axios from 'axios';
 import * as bootstrap from 'bootstrap';
 
@@ -390,6 +400,20 @@ const fetchTechnicians = async () => {
 // ==========================================
 //  FLUJO DE GESTIÓN DE TICKETS
 // ==========================================
+
+
+const completedTicketsOrdered = computed(() => {
+  return tickets.value
+    .filter(t => t.status === 'resuelto')
+    .sort((a, b) => {
+      if (!a.resolved_at) return 1;
+      if (!b.resolved_at) return -1;
+
+      return new Date(b.resolved_at) - new Date(a.resolved_at);
+
+    });
+});
+
 
 // Trae todos los tickets del sistema
 const fetchTickets = async () => {
@@ -591,7 +615,7 @@ const emit = defineEmits(['logout-trigger']);
 
 
 const handleLogout = () => {
-  
+
   emit('logout-trigger');
 };
 
