@@ -4,6 +4,14 @@ import Login from './Components/Auth/Login.vue';
 import TicketDashboard from './Components/TicketDashboard.vue';
 import axios from 'axios';
 
+const isAuthenticated = ref(false);
+const currentUser = ref(null);
+
+const loginSuccess = (data) => {
+    currentUser.value = data.user; 
+    isAuthenticated.value = true;   
+
+}
 
 const token = localStorage.getItem('auth_token');
 

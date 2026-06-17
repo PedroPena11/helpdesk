@@ -45,6 +45,7 @@ $RECYCLE.BIN/
 *.njsproj
 *.sln
 *.sw?
+hot
 
 .phpunit.result.cache
 .pnpm-debug.log*
