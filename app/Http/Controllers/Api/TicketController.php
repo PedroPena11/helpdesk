@@ -72,6 +72,7 @@ class TicketController extends Controller
     }
 
     $ticket->status = 'resuelto';
+    $ticket->resolved_at = now();
     $ticket->save();
 
     $ticket->load(['client', 'technician']);

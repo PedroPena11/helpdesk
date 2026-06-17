@@ -11,33 +11,14 @@
 
     <div id="app" class="bg-light min-vh-100">
         
-        <login v-if="!isAuthenticated" @@auth-success="loginSuccess"></login>
-
-        <div v-else>
-            
-            <nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm py-3 mb-4">
-                <div class="container d-flex justify-content-between align-items-center">
-                    
-                    <a class="navbar-brand fw-bold d-flex align-items-center" href="#">
-                        <i class="bi bi-headset me-2 text-primary"></i> HelpDesk Professional
-                    </a>
-
-                    <div class="d-flex align-items-center">
-                        <span class="text-white-50 me-3 small d-none d-sm-inline fw-semibold">
-                            <i class="bi bi-person-fill me-1 text-primary"></i> @{{ currentUser?.name }}
-                        </span>
-                        
-                        <button @@click="handleLogout" class="btn btn-outline-danger btn-sm fw-bold">
-                            <i class="bi bi-box-arrow-right me-1"></i> Cerrar Sesión
-                        </button>
-                    </div>
-
-                </div>
-            </nav>
-
-            <ticket-dashboard></ticket-dashboard>
-
+        <div v-if="!isAuthenticated">
+            <login @@auth-success="loginSuccess"></login>
         </div>
+
+        <div v-if="isAuthenticated">
+            <ticket-dashboard :user-data="currentUser" @@logout-trigger="handleLogout"></ticket-dashboard>
+        </div>
+
     </div>
 
 </body>
