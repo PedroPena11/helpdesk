@@ -11,6 +11,7 @@ Route::post('/login',[AuthController::class,'login']);
 Route::middleware('auth:sanctum')->group(function(){
     Route::apiResource('tickets',TicketController::class);
     Route::get('/tickets', [TicketController::class, 'index']);
+    Route::post('/tickets/{id}/claim',[TicketController::class,'claimTicket']);
     Route::post('/tickets', [TicketController::class, 'store']);
     Route::put('/tickets/{id}/complete', [TicketController::class, 'complete']);
     Route::post('/logout',[AuthController::class,'logout']);

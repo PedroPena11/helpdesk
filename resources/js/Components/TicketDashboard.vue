@@ -161,20 +161,27 @@
                                 ⚙️ {{ ticket.technician ? ticket.technician.name : 'Asignado' }}
                               </span>
                             </div>
+                       
+                            <div class="mt-3 d-flex justify-content-end gap-2">
 
-                            <div v-if="role === 'admin' && ticket.status?.toLowerCase() === 'abierto'" class="mt-2">
-                              <select class="form-select form-select-sm" @change="assignTechnician(ticket.id, $event)">
-                                <option value="">Asignar técnico...</option>
-                                <option v-for="tech in technicians" :key="tech.id" :value="tech.id">
-                                  {{ tech.name }}
-                                </option>
-                              </select>
-                            </div>
-
-                            <div v-if="role === 'agent' && ticket.status === 'en_progreso'" class="mt-2 text-end">
-                              <button class="btn btn-sm btn-success w-100 fw-bold" @click="completeTicket(ticket.id)">
-                                ✓ Marcar como Resuelto
+                              <button v-if="ticket.status === 'abierto' && role === 'agent'"
+                                class="btn btn-primary btn-sm fw-bold d-flex align-items-center gap-1"
+                                @click="claimTicket(ticket.id)">
+                                🛠️ Tomar Tarea
                               </button>
+
+                              <button
+                                v-if="ticket.status === 'en_progreso' && role === 'agent' && ticket.technician_id === userData.id"
+                                class="btn btn-success btn-sm fw-bold d-flex align-items-center gap-1"
+                                @click="completeTicket(ticket.id)">
+                                ✓ Finalizar Incidencia
+                              </button>
+
+                              <span v-if="ticket.status === 'en_progreso' && ticket.technician_id !== userData.id"
+                                class="badge bg-light text-dark border font-monospace">
+                                👨‍💻 En proceso por: {{ ticket.technician?.name }}
+                              </span>
+
                             </div>
                           </div>
                         </div>
@@ -196,35 +203,27 @@
 
               <div class="card-body scrollable-column bg-light text-center py-2">
                 <div class="list-group list-group-flush">
+                  <div v-for="ticket in completedTicketsOrdered" :key="ticket.id"
+                    class="list-group-item bg-white border-0 shadow-sm rounded mb-2 p-3 text-start border-start border-success border-3">
 
-                 
+                    <div class="fw-bold text-dark text-truncate">{{ ticket.title }}</div>
 
-                        <div v-for="ticket in completedTicketsOrdered" :key="ticket.id"
-                          class="list-group-item bg-white border-0 shadow-sm rounded mb-2 p-3 text-start border-start border-success border-3 animate-fade-in">
+                    <div class="d-flex justify-content-between align-items-center mt-1">
+                      <small class="text-muted">👤 {{ ticket.client ? ticket.client.name : 'Cliente' }}</small>
+                      <small class="text-success font-monospace" style="font-size: 0.75rem;">Resuelto ✓</small>
+                    </div>
 
-                          <div class="fw-bold text-dark text-truncate">{{ ticket.title }}</div>
+                    <div v-if="ticket.resolved_at" class="text-secondary mt-1" style="font-size: 0.7rem;">
+                      🏁 <strong>Finalizado:</strong> {{ formatDateTime(ticket.resolved_at) }}
+                    </div>
 
-                          <div class="d-flex justify-content-between align-items-center mt-1">
-                            <small class="text-muted">👤 {{ ticket.client ? ticket.client.name : 'Cliente' }}</small>
-                            <small class="text-success font-monospace" style="font-size: 0.75rem;">Resuelto ✓</small>
-                          </div>
+                    <div v-if="ticket.started_at && ticket.resolved_at" class="text-muted small mt-1"
+                      style="font-size: 0.7rem;">
+                      ⏱️ <strong>Tiempo de resolución:</strong> {{ calculateDuration(ticket.started_at,
+                        ticket.resolved_at) }}
+                    </div>
 
-                          <div v-if="ticket.resolved_at" class="text-secondary mt-1" style="font-size: 0.7rem;">
-                            🏁 <strong>Finalizado:</strong> {{ formatDateTime(ticket.resolved_at) }}
-                          </div>
-
-                        </div>
-
-                        <div v-if="completedTicketsOrdered.length === 0" class="text-muted py-5 small">
-                          No hay tareas completadas en este ciclo.
-                        </div>
-
-                      
-
-                  <div v-if="!tickets.some(t => t.status === 'resuelto')" class="text-muted py-5 small">
-                    No hay tareas completadas en este ciclo.
                   </div>
-
                 </div>
               </div>
             </div>
@@ -520,22 +519,14 @@ const listenForTickets = () => {
 
 
     .listen('.ticket.assigned', (e) => {
-      console.log("Asignación recibida por WS:", e.ticket);
+      console.log("Ticket actualizado por WS:", e.ticket);
 
-      if (role.value === 'agent') {
 
-        if (userData.value && e.ticket.technician_id === userData.value.id) {
-          const exists = tickets.value.some(t => t.id === e.ticket.id);
-          if (!exists) tickets.value.unshift(e.ticket);
-        } else {
-
-          tickets.value = tickets.value.filter(t => t.id !== e.ticket.id);
-        }
-      } else if (role.value === 'admin' || (role.value === 'client' && userData.value && e.ticket.client_id === userData.value.id)) {
-        const index = tickets.value.findIndex(t => t.id === e.ticket.id);
-        if (index !== -1) {
-          tickets.value[index] = e.ticket;
-        }
+      const index = tickets.value.findIndex(t => t.id === e.ticket.id);
+      if (index !== -1) {
+        tickets.value[index] = e.ticket;
+      } else {
+        tickets.value.push(e.ticket);
       }
     })
 
@@ -558,6 +549,39 @@ const listenForTickets = () => {
 // ==========================================
 // HELPERS Y ESTILOS VISUALES
 // ==========================================
+
+const claimTicket = async (id) => {
+  try {
+    const response = await axios.post(`/api/tickets/${id}/claim`);
+    
+    const index = tickets.value.findIndex(t => t.id === id);
+    if (index !== -1) {
+      tickets.value[index] = response.data;
+    }
+  } catch (error) {
+    console.error("Error al reclamar el ticket:", error);
+    alert(error.response?.data?.message || "No se pudo tomar la tarea.");
+  }
+};
+
+
+const calculateDuration = (started, resolved) => {
+  if (!started || !resolved) return 'N/A';
+
+  const start = new Date(started);
+  const end = new Date(resolved);
+  const diffMs = end - start;
+
+  const diffMins = Math.round(diffMs / 60000);
+
+  if (diffMins < 60) {
+    return `${diffMins} min`;
+  } else {
+    const hours = Math.floor(diffMins / 60);
+    const mins = diffMins % 60;
+    return `${hours}h ${mins}m`;
+  }
+};
 
 const formatDateTime = (dateString) => {
   if (!dateString) return '';
