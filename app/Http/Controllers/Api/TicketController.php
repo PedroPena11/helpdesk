@@ -92,7 +92,7 @@ public function claimTicket(Request $request, $id)
     $ticket->load(['client', 'technician']);
 
     
-    // broadcast(new \App\Events\TicketUpdated($ticket))->toOthers(); 
+    broadcast(new \App\Events\TicketUpdated($ticket))->toOthers(); 
 
     return response()->json($ticket, 200);
 }

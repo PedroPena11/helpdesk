@@ -112,6 +112,10 @@
       Conectado como <strong>Administrador</strong>.
     </div>
 
+    <div v-if="role === 'admin' && technicians.length > 0" class="container-fluid mb-4">
+    <WorkloadChart :tickets="tickets" :technicians="technicians" />
+</div>
+
     <div v-if="loading" class="text-center my-5">
       <div class="spinner-border text-primary" role="status">
         <span class="visually-hidden">Cargando...</span>
@@ -161,7 +165,7 @@
                                 ⚙️ {{ ticket.technician ? ticket.technician.name : 'Asignado' }}
                               </span>
                             </div>
-                       
+
                             <div class="mt-3 d-flex justify-content-end gap-2">
 
                               <button v-if="ticket.status === 'abierto' && role === 'agent'"
@@ -303,6 +307,7 @@
 import { ref, onMounted, computed, onUnmounted } from 'vue';
 import axios from 'axios';
 import * as bootstrap from 'bootstrap';
+import WorkloadChart from './WorkloadChart.vue'
 
 // ==========================================
 // ESTADOS REACTIVOS Y VARIABLES GLOBALES
@@ -514,19 +519,15 @@ const listenForTickets = () => {
         tickets.value.unshift(e.ticket);
       } else if (role.value === 'client' && userData.value && e.ticket.client_id === userData.value.id) {
         tickets.value.unshift(e.ticket);
-      }
+      }else if (role.value === 'agent') {
+        tickets.value.unshift(e.ticket);
+      } 
     })
-
-
-    .listen('.ticket.assigned', (e) => {
-      console.log("Ticket actualizado por WS:", e.ticket);
-
-
+    .listen('.ticket.updated', (e) => {
+      console.log("Ticket actualizado recibido", e.ticket);
       const index = tickets.value.findIndex(t => t.id === e.ticket.id);
-      if (index !== -1) {
+      if(index !== -1){
         tickets.value[index] = e.ticket;
-      } else {
-        tickets.value.push(e.ticket);
       }
     })
 
@@ -553,7 +554,7 @@ const listenForTickets = () => {
 const claimTicket = async (id) => {
   try {
     const response = await axios.post(`/api/tickets/${id}/claim`);
-    
+
     const index = tickets.value.findIndex(t => t.id === id);
     if (index !== -1) {
       tickets.value[index] = response.data;
@@ -650,6 +651,7 @@ const handleLogout = () => {
 
 
 
+
 onMounted(() => {
   const rawData = localStorage.getItem('user_data');
   if (rawData) {
@@ -659,10 +661,8 @@ onMounted(() => {
 
   fetchTickets();
   listenForTickets();
+  fetchTechnicians();
 
-  if (role.value === 'admin') {
-    fetchTechnicians();
-  }
 });
 
 onUnmounted(() => {
