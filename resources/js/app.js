@@ -3,15 +3,11 @@ import { createApp, ref } from 'vue';
 import Login from './Components/Auth/Login.vue';
 import TicketDashboard from './Components/TicketDashboard.vue';
 import axios from 'axios';
+import SecuritySetup from './Components/SecuritySetup.vue';
 
 const isAuthenticated = ref(false);
 const currentUser = ref(null);
 
-const loginSuccess = (data) => {
-    currentUser.value = data.user; 
-    isAuthenticated.value = true;   
-
-}
 
 const token = localStorage.getItem('auth_token');
 
@@ -20,55 +16,198 @@ const hasValidToken = token && token !== 'null' && token !== 'undefined';
 
 if (hasValidToken) {
     axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+
+    let isExpelling = false;
+
+    axios.interceptors.response.use(
+        (response) => response,
+        (error) => {
+            if (error.response && error.response.status === 401) {
+                const errorData = error.response.data;
+
+                if (errorData.error === 'session_expired' || errorData.error === 'session_concurrent') {
+
+
+                    if (isExpelling) return new Promise(() => { });
+                    isExpelling = true;
+
+
+                    localStorage.clear();
+                    delete axios.defaults.headers.common['Authorization'];
+
+
+                    alert(errorData.message);
+
+
+                    window.location.href = '/';
+
+                    return new Promise(() => { });
+                }
+            }
+            return Promise.reject(error);
+        }
+    );
 }
 
 createApp({
     components: {
         Login,
-        TicketDashboard
+        TicketDashboard,
+        SecuritySetup
     },
     setup() {
-        
+        const tokenExists = localStorage.getItem('access_token');
+        const hasValidToken = tokenExists && tokenExists !== 'null' && tokenExists !== 'undefined';
+
         const isAuthenticated = ref(hasValidToken);
         const currentUser = ref(null);
+
+        const mustCompleteSetup = ref(false);
+
+
+        let warningTimer = null;
+        let logoutTimer = null;
+
+        const TIME_TO_WARNING = 1 * 60 * 1000;
+        const TIME_TO_LOGOUT = 2 * 60 * 1000;
+
+
+        const forceInactivityLogout = () => {
+            localStorage.clear();
+            delete axios.defaults.headers.common['Authorization'];
+            isAuthenticated.value = false;
+            currentUser.value = null;
+            alert("Tu sesión ha sido cerrada automáticamente por inactividad.");
+            window.location.href = '/';
+        };
+
+
+        const resetInactivityTimers = () => {
+
+            if (!isAuthenticated.value) return;
+
+
+            clearTimeout(warningTimer);
+            clearTimeout(logoutTimer);
+
+
+            warningTimer = setTimeout(() => {
+                alert("⚠️ Alerta de Seguridad: Tu sesión va a expirar en 1 minuto por inactividad. Mueve el mouse o interactúa para mantenerla activa.");
+            }, TIME_TO_WARNING);
+
+
+            logoutTimer = setTimeout(() => {
+                forceInactivityLogout();
+            }, TIME_TO_LOGOUT);
+        };
+
+
+        const startTrackingActivity = () => {
+            const activityEvents = ['mousemove', 'keypress', 'click', 'scroll', 'touchstart'];
+
+            activityEvents.forEach(event => {
+                window.addEventListener(event, resetInactivityTimers);
+            });
+
+
+            resetInactivityTimers();
+        };
+
+        const stopTrackingActivity = () => {
+            const activityEvents = ['mousemove', 'keypress', 'click', 'scroll', 'touchstart'];
+            activityEvents.forEach(event => {
+                window.removeEventListener(event, resetInactivityTimers);
+            });
+            clearTimeout(warningTimer);
+            clearTimeout(logoutTimer);
+        };
 
        
         const savedUser = localStorage.getItem('user_data');
         if (hasValidToken && savedUser && savedUser !== 'undefined' && savedUser !== 'null') {
             try {
-                currentUser.value = JSON.parse(savedUser);
+                const parsedUser = JSON.parse(savedUser);
+                currentUser.value = parsedUser;
+
+                
+                console.log("=== ARRANQUE DETECTADO DESDE LOCALSTORAGE ===");
+                console.log("Usuario recuperado:", parsedUser);
+                console.log("¿Falta completar el setup?:", !parsedUser.setup_completed);
+
+                
+                mustCompleteSetup.value = !parsedUser.setup_completed;
+
+                if (parsedUser.setup_completed) {
+                    console.log("-> Todo en orden. Activando temporizadores.");
+                    setTimeout(() => startTrackingActivity(), 500);
+                } else {
+                    console.log("-> ATENCIÓN: Este usuario debería estar bloqueado en el setup.");
+                }
             } catch (e) {
-                console.error("Error al leer los datos de usuario corruptos:", e);
+                console.error("Error al parsear el usuario guardado:", e);
+                localStorage.clear();
+                isAuthenticated.value = false;
             }
         }
 
-       
-        const loginSuccess = (user) => {
-            currentUser.value = user;
+
+        const loginSuccess = (userData) => {
+            console.log("¡POR FIN ENTRÓ A APP.JS!", userData);
+
+            currentUser.value = userData.user;
             isAuthenticated.value = true;
+
+            localStorage.setItem('access_token', userData.access_token);
+            localStorage.setItem('user_data', JSON.stringify(userData.user));
+            axios.defaults.headers.common['Authorization'] = `Bearer ${userData.access_token}`;
+
+           
+            if (!userData.user.setup_completed) {
+                console.log("-> Interceptado: Al usuario le falta configurar preguntas.");
+                mustCompleteSetup.value = true;
+            } else {
+                console.log("-> Permitido: Va directo al Dashboard.");
+                mustCompleteSetup.value = false;
+                startTrackingActivity();
+            }
         };
 
         
+        const securitySetupSuccess = (updatedUser) => {
+            console.log("¡Preguntas configuradas con éxito en BD!");
+            currentUser.value = updatedUser;
+            mustCompleteSetup.value = false; 
+
+            localStorage.setItem('user_data', JSON.stringify(updatedUser));
+            startTrackingActivity();
+        };
+
+
         const handleLogout = async () => {
             try {
+                stopTrackingActivity();
                 await axios.post('/api/logout');
             } catch (error) {
                 console.error("Error al revocar el token en el servidor:", error);
             } finally {
-               
-                localStorage.removeItem('auth_token');
-                localStorage.removeItem('user_data');
+                localStorage.clear();
                 delete axios.defaults.headers.common['Authorization'];
                 isAuthenticated.value = false;
                 currentUser.value = null;
+                window.location.href = '/';
             }
         };
 
         return {
             isAuthenticated,
             currentUser,
+            mustCompleteSetup,
             loginSuccess,
-            handleLogout
+            handleLogout,
+            securitySetupSuccess
         };
+
+
+
     }
 }).mount('#app');

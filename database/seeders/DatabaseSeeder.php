@@ -40,5 +40,6 @@ class DatabaseSeeder extends Seeder
                 'role' => 'client',
             ]);
         }
+        $this->call(SecurityQuestionsSeeder::class);
     }
 }
