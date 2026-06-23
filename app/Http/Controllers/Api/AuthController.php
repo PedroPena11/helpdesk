@@ -128,21 +128,151 @@ class AuthController extends Controller
     }
 
     public function getQuestions()
-{
-    try {
-        $questions = DB::table('security_questions')
-            ->select('id', 'question')
+    {
+        try {
+            $questions = DB::table('security_questions')
+                ->select('id', 'question')
+                ->get();
+
+
+            return response()->json($questions, 200);
+        } catch (\Exception $e) {
+
+            return response()->json([
+                'message' => 'Error al recuperar las preguntas de seguridad.',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function updatePassword(Request $request)
+    {
+        $request->validate([
+            'current_password' => 'required',
+            'new_password' => 'required|string|min:8|confirmed',
+        ]);
+
+        $user = $request->user();
+
+        if (!Hash::check($request->current_password, $user->password)) {
+            return response()->json([
+                'message' => 'La contraseña actual no es correcta.'
+            ], 422);
+        }
+
+
+        DB::table('users')->where('id', $user->id)->update([
+            'password' => Hash::make($request->new_password),
+            'updated_at' => now()
+        ]);
+
+        return response()->json([
+            'message' => 'Contraseña actualizada con éxito con los estándares de seguridad.'
+        ], 200);
+    }
+
+    public function updateSecuritySettings(Request $request)
+    {
+        $request->validate([
+            'security_question_id' => 'required|exists:security_questions,id',
+            'answer' => 'required|string|min:3|max:255',
+            'password_verification' => 'required'
+        ]);
+
+        $user = $request->user();
+
+
+        if (!Hash::check($request->password_verification, $user->password)) {
+            return response()->json([
+                'message' => 'Validación de identidad fallida. Contraseña incorrecta.'
+            ], 422);
+        }
+
+        DB::beginTransaction();
+        try {
+
+            DB::table('user_security_answers')->where('user_id', $user->id)->delete();
+
+
+            DB::table('user_security_answers')->insert([
+                'user_id' => $user->id,
+                'security_question_id' => $request->security_question_id,
+                'answer' => Hash::make(strtolower(trim($request->answer))),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            DB::commit();
+            return response()->json(['message' => 'Opciones de recuperación actualizadas con éxito.']);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['message' => 'Error interno en el servidor.'], 500);
+        }
+    }
+
+    public function getAllUsers(Request $request)
+    {
+
+        if ($request->user()->role !== 'admin') {
+            return response()->json(['message' => 'Acceso denegado.'], 403);
+        }
+
+        $users = DB::table('users')
+            ->select('id', 'name', 'email', 'role', 'setup_completed', 'created_at')
+            ->orderBy('created_at', 'desc')
             ->get();
 
-        
-        return response()->json($questions, 200);
-
-    } catch (\Exception $e) {
-        
-        return response()->json([
-            'message' => 'Error al recuperar las preguntas de seguridad.',
-            'error' => $e->getMessage()
-        ], 500);
+        return response()->json($users, 200);
     }
-}
+
+    public function storeUser(Request $request)
+    {
+        if ($request->user()->role !== 'admin') {
+            return response()->json(['message' => 'Acceso denegado.'], 403);
+        }
+
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users,email',
+            'role' => 'required|in:admin,agent,client',
+            'password' => 'required|string|min:8'
+        ]);
+
+        DB::table('users')->insert([
+            'name' => $request->name,
+            'email' => $request->email,
+            'role' => $request->role,
+            'password' => Hash::make($request->password),
+            'setup_completed' => false,
+            'created_at' => now(),
+            'updated_at' => now()
+        ]);
+
+        return response()->json(['message' => 'Usuario registrado exitosamente.'], 201);
+    }
+
+    public function deleteUser(Request $request, $id)
+    {
+        if ($request->user()->role !== 'admin') {
+            return response()->json(['message' => 'Acceso denegado.'], 403);
+        }
+
+        
+        if ($request->user()->id == $id) {
+            return response()->json(['message' => 'No puedes eliminar tu propia cuenta.'], 400);
+        }
+
+        DB::beginTransaction();
+        try {
+            
+            DB::table('user_security_answers')->where('user_id', $id)->delete();
+            DB::table('users')->where('id', $id)->delete();
+
+            DB::commit();
+            return response()->json(['message' => 'Usuario eliminado correctamente de los registros.']);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['message' => 'Error al eliminar el usuario.'], 500);
+        }
+    }
 }

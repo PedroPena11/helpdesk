@@ -130,15 +130,13 @@ createApp({
                 currentUser.value = parsedUser;
 
                 
-                console.log("=== ARRANQUE DETECTADO DESDE LOCALSTORAGE ===");
-                console.log("Usuario recuperado:", parsedUser);
-                console.log("¿Falta completar el setup?:", !parsedUser.setup_completed);
+              
 
                 
                 mustCompleteSetup.value = !parsedUser.setup_completed;
 
                 if (parsedUser.setup_completed) {
-                    console.log("-> Todo en orden. Activando temporizadores.");
+                    
                     setTimeout(() => startTrackingActivity(), 500);
                 } else {
                     console.log("-> ATENCIÓN: Este usuario debería estar bloqueado en el setup.");
@@ -152,8 +150,6 @@ createApp({
 
 
         const loginSuccess = (userData) => {
-            console.log("¡POR FIN ENTRÓ A APP.JS!", userData);
-
             currentUser.value = userData.user;
             isAuthenticated.value = true;
 
@@ -163,10 +159,8 @@ createApp({
 
            
             if (!userData.user.setup_completed) {
-                console.log("-> Interceptado: Al usuario le falta configurar preguntas.");
                 mustCompleteSetup.value = true;
             } else {
-                console.log("-> Permitido: Va directo al Dashboard.");
                 mustCompleteSetup.value = false;
                 startTrackingActivity();
             }
@@ -174,7 +168,6 @@ createApp({
 
         
         const securitySetupSuccess = (updatedUser) => {
-            console.log("¡Preguntas configuradas con éxito en BD!");
             currentUser.value = updatedUser;
             mustCompleteSetup.value = false; 
 
