@@ -8,6 +8,9 @@ use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Str;
+use Illuminate\Auth\Events\PasswordReset;
 
 class AuthController extends Controller
 {
@@ -84,7 +87,7 @@ class AuthController extends Controller
     public function saveSecurityQuestions(Request $request)
     {
         $request->validate([
-            'security_question_id' => 'required|exists:security_questions,id',
+            'security_question_id' => 'required|exists:security_question,id',
             'answer' => 'required|string|min:3|max:255',
         ]);
 
@@ -257,14 +260,14 @@ class AuthController extends Controller
             return response()->json(['message' => 'Acceso denegado.'], 403);
         }
 
-        
+
         if ($request->user()->id == $id) {
             return response()->json(['message' => 'No puedes eliminar tu propia cuenta.'], 400);
         }
 
         DB::beginTransaction();
         try {
-            
+
             DB::table('user_security_answers')->where('user_id', $id)->delete();
             DB::table('users')->where('id', $id)->delete();
 
@@ -274,5 +277,124 @@ class AuthController extends Controller
             DB::rollBack();
             return response()->json(['message' => 'Error al eliminar el usuario.'], 500);
         }
+    }
+
+
+
+    public function sendResetLinkEmail(Request $request)
+    {
+        $request->validate(['email' => 'required|email|exists:users,email']);
+
+        $status = Password::broker()->sendResetLink(
+            $request->only('email')
+        );
+
+        if ($status === Password::RESET_LINK_SENT) {
+            return response()->json([
+                'message' => 'Te hemos enviado un enlace de recuperación a tu correo electrónico.'
+            ], 200);
+        }
+
+        return response()->json([
+            'message' => 'No se pudo enviar el correo de recuperación.'
+        ], 422);
+    }
+
+
+    public function resetPasswordByEmail(Request $request)
+    {
+        $request->validate([
+            'token' => 'required',
+            'email' => 'required|email|exists:users,email',
+            'password' => 'required|string|min:8|confirmed',
+        ]);
+
+
+        $status = Password::broker()->reset(
+            $request->only('email', 'password', 'password_confirmation', 'token'),
+            function ($user, $password) {
+
+                $user->password = Hash::make($password);
+                $user->setRememberToken(Str::random(60));
+                $user->save();
+
+                event(new PasswordReset($user));
+            }
+        );
+
+        if ($status === Password::PASSWORD_RESET) {
+            return response()->json([
+                'message' => 'Tu contraseña ha sido reestablecida con éxito en PostgreSQL. Ya puedes iniciar sesión.'
+            ], 200);
+        }
+
+        return response()->json([
+            'message' => __($status)
+        ], 422);
+    }
+
+    public function getRecoveryQuestion(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email|exists:users,email'
+        ]);
+
+
+        $user = DB::table('users')->where('email', $request->email)->first();
+
+
+        $userAnswer = DB::table('user_security_answers')
+            ->where('user_id', $user->id)
+            ->first();
+
+        if (!$userAnswer) {
+            return response()->json([
+                'message' => 'Este usuario no tiene configuradas preguntas de seguridad de recuperación.'
+            ], 422);
+        }
+
+
+        $questionText = DB::table('security_questions')
+            ->where('id', $userAnswer->security_question_id)
+            ->value('question');
+
+        return response()->json([
+            'email' => $user->email,
+            'question' => $questionText
+        ], 200);
+    }
+
+
+    public function resetPasswordByQuestion(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email|exists:users,email',
+            'answer' => 'required|string',
+            'password' => 'required|string|min:8|confirmed'
+        ]);
+
+        $user = DB::table('users')->where('email', $request->email)->first();
+
+        $userAnswer = DB::table('user_security_answers')
+            ->where('user_id', $user->id)
+            ->first();
+
+
+        $processedAnswer = strtolower(trim($request->answer));
+
+        if (!Hash::check($processedAnswer, $userAnswer->answer)) {
+            return response()->json([
+                'message' => 'La respuesta de seguridad es incorrecta. Validación fallida.'
+            ], 422);
+        }
+
+        DB::table('users')->where('id', $user->id)->update([
+            'password' => Hash::make($request->password),
+            'updated_at' => now()
+        ]);
+
+        return response()->json([
+            'message' => 'Contraseña reestablecida con éxito. Ya puedes iniciar sesión.'
+        ], 200);
     }
 }

@@ -8,10 +8,14 @@ use App\Http\Middleware\AdvancedSessionControl;
 
 Route::post('/login', [AuthController::class, 'login']);
 Route::get('/security-questions', [AuthController::class, 'getQuestions']);
+Route::post('/forgot-password', [AuthController::class, 'sendResetLinkEmail']);
+Route::post('/reset-password', [AuthController::class, 'resetPasswordByEmail']);
+Route::post('/recovery/get-question', [AuthController::class, 'getRecoveryQuestion']);
+Route::post('/recovery/reset-password', [AuthController::class, 'resetPasswordByQuestion']);
+
 
 Route::middleware(['auth:sanctum', AdvancedSessionControl::class])->group(function () {
     Route::apiResource('tickets', TicketController::class);
-
     Route::get('/tickets', [TicketController::class, 'index']);
     Route::post('/tickets/{id}/claim', [TicketController::class, 'claimTicket']);
     Route::post('/tickets', [TicketController::class, 'store']);

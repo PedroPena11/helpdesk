@@ -5,49 +5,39 @@ import TicketDashboard from './Components/TicketDashboard.vue';
 import axios from 'axios';
 import SecuritySetup from './Components/SecuritySetup.vue';
 
-const isAuthenticated = ref(false);
-const currentUser = ref(null);
 
-
-const token = localStorage.getItem('auth_token');
-
-
+const token = localStorage.getItem('access_token'); 
 const hasValidToken = token && token !== 'null' && token !== 'undefined';
 
 if (hasValidToken) {
     axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-
-    let isExpelling = false;
-
-    axios.interceptors.response.use(
-        (response) => response,
-        (error) => {
-            if (error.response && error.response.status === 401) {
-                const errorData = error.response.data;
-
-                if (errorData.error === 'session_expired' || errorData.error === 'session_concurrent') {
-
-
-                    if (isExpelling) return new Promise(() => { });
-                    isExpelling = true;
-
-
-                    localStorage.clear();
-                    delete axios.defaults.headers.common['Authorization'];
-
-
-                    alert(errorData.message);
-
-
-                    window.location.href = '/';
-
-                    return new Promise(() => { });
-                }
-            }
-            return Promise.reject(error);
-        }
-    );
 }
+
+
+let isExpelling = false;
+
+axios.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        if (error.response && error.response.status === 401) {
+            const errorData = error.response.data;
+
+            if (errorData.error === 'session_expired' || errorData.error === 'session_concurrent') {
+                if (isExpelling) return new Promise(() => { });
+                isExpelling = true;
+
+                localStorage.clear();
+                delete axios.defaults.headers.common['Authorization'];
+
+                alert(errorData.message);
+                window.location.href = '/';
+
+                return new Promise(() => { });
+            }
+        }
+        return Promise.reject(error);
+    }
+);
 
 createApp({
     components: {
