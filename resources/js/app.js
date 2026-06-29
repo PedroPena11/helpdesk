@@ -4,6 +4,8 @@ import Login from './Components/Auth/Login.vue';
 import TicketDashboard from './Components/TicketDashboard.vue';
 import axios from 'axios';
 import SecuritySetup from './Components/SecuritySetup.vue';
+import AuditoriaPanel from './Components/AuditoriaPanel.vue';
+import BackupPanel from './Components/BackupPanel.vue';
 
 
 const token = localStorage.getItem('access_token'); 
@@ -43,7 +45,10 @@ createApp({
     components: {
         Login,
         TicketDashboard,
-        SecuritySetup
+        SecuritySetup,
+        AuditoriaPanel,
+        BackupPanel
+
     },
     setup() {
         const tokenExists = localStorage.getItem('access_token');

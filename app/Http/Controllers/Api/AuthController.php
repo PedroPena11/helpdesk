@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Auditoria;
 use Illuminate\Http\Request;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -24,6 +25,7 @@ class AuthController extends Controller
         $user = User::where('email', $request->email)->first();
 
         if (! $user || !Hash::check($request->password, $user->password)) {
+            Auditoria::registrar(null, 'LOGIN_FALLIDO', "Intento de acceso fallido para el correo: {$request->email}");
             throw ValidationException::withMessages([
                 'email' => ["Las credenciales proporcionadas son incorrectas."],
             ]);
@@ -45,6 +47,8 @@ class AuthController extends Controller
             'updated_at' => now()
         ]);
 
+
+        Auditoria::registrar($user->id, 'LOGIN_EXITOSO', "El usuario inició sesión correctamente.");
 
         return response()->json([
             'access_token' => $token,
@@ -87,7 +91,7 @@ class AuthController extends Controller
     public function saveSecurityQuestions(Request $request)
     {
         $request->validate([
-            'security_question_id' => 'required|exists:security_question,id',
+            'security_question_id' => 'required|exists:security_questions,id',
             'answer' => 'required|string|min:3|max:255',
         ]);
 
@@ -168,6 +172,8 @@ class AuthController extends Controller
             'password' => Hash::make($request->new_password),
             'updated_at' => now()
         ]);
+
+        
 
         return response()->json([
             'message' => 'Contraseña actualizada con éxito con los estándares de seguridad.'
@@ -278,7 +284,6 @@ class AuthController extends Controller
             return response()->json(['message' => 'Error al eliminar el usuario.'], 500);
         }
     }
-
 
 
     public function sendResetLinkEmail(Request $request)

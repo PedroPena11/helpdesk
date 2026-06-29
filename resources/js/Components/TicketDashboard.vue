@@ -60,6 +60,8 @@
     </div>
   </nav>
 
+
+
   <div class="container mt-5">
     <div class="d-flex justify-content-between align-items-center mb-4">
       <h2 class="text-primary fw-bold">🎫 Panel de Incidencias (Helpdesk)</h2>
@@ -180,6 +182,18 @@
   <CreateTicketModal id="mainTicketModal" @ticket-created="(newTicket) => tickets.unshift(newTicket)" />
   <CreateUserModal @user-created="(userRole) => { if (userRole === 'agent') fetchTechnicians(); }" />
 
+  <div v-if="role === 'admin'" class="row mt-4">
+    <div class="col-12">
+      <AuditoriaPanel />
+    </div>
+  </div>
+  
+<div v-if="role === 'admin'" class="row mt-4">
+  <div class="col-12">
+    <BackupPanel />
+  </div>
+</div>
+
   <div class="modal fade" id="securityModal" tabindex="-1" aria-labelledby="securityModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content border-0 rounded-4 shadow-lg">
@@ -267,6 +281,7 @@
           </div>
 
         </div>
+
       </div>
     </div>
   </div>
@@ -279,6 +294,8 @@ import axios from 'axios';
 import WorkloadChart from './WorkloadChart.vue';
 import CreateTicketModal from './CreateTicketModal.vue';
 import CreateUserModal from './CreateUserModal.vue';
+import AuditoriaPanel from './AuditoriaPanel.vue';
+import BackupPanel from './BackupPanel.vue';
 import { Modal } from 'bootstrap';
 
 const tickets = ref([]);
@@ -486,30 +503,30 @@ const handleLogout = () => emit('logout-trigger');
 // LIFECYCLE
 
 onMounted(async () => {
-  
+
   const token = localStorage.getItem('access_token');
-  
-  
+
+
   if (token) {
     axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
   } else {
-    
+
     handleLogout();
     return;
   }
 
- 
+
   const rawData = localStorage.getItem('user_data');
   if (rawData) {
     userData.value = JSON.parse(rawData);
     role.value = userData.value.role;
   }
 
-  
+
   await fetchTickets();
   listenForTickets();
   fetchTechnicians();
-  
+
   if (role.value === 'admin') {
     await fetchTechnicians();
   }
@@ -571,5 +588,4 @@ onUnmounted(() => {
 .hide-toggle-arrow::after {
   display: none !important;
 }
-
 </style>

@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Auditoria;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -36,6 +37,7 @@ class AdvancedSessionControl
             
             $user->currentAccessToken()->delete();
 
+            Auditoria::registrar($user->id, 'SESION_CONCURRENTE', "Se bloqueó un intento de acceso concurrente.");
             
             return response()->json([
                 'error' => 'session_concurrent',
@@ -52,6 +54,8 @@ class AdvancedSessionControl
             
             DB::table('user_sessions')->where('user_id', $user->id)->delete();
             $user->currentAccessToken()->delete();
+
+            Auditoria::registrar($user->id, 'SESION_FINALIZADA_PO_INACTIVIDAD', "Sesion finalizada por inactividad.");
 
             return response()->json([
                 'error' => 'session_expired',
