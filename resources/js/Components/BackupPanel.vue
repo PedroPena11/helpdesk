@@ -58,7 +58,7 @@
             <td class="text-end">
               <div class="btn-group btn-group-sm">
                 <!-- Descarga Directa -->
-                <a :href="`/api/admin/backups/download/${backup.filename}`" 
+                <a @click="downloadBackup(backup.filename)" 
                    class="btn btn-outline-dark" 
                    title="Descargar archivo SQL">
                   <i class="bi bi-download"></i>
@@ -128,6 +128,32 @@ const deleteBackup = async (filename) => {
   } catch (error) {
     const errorDetalle = error.response?.data?.error_puro_windows || 'Error sin detalle.';
     const mensajeBase = error.response?.data?.message || 'Error crítico.';
+  }
+};
+
+const downloadBackup = async (filename) => {
+  try {
+    
+    const response = await axios.get(`/api/admin/backups/download/${filename}`, {
+      responseType: 'blob' 
+    });
+
+    
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    
+    
+    link.remove();
+    window.URL.revokeObjectURL(url);
+
+    showAlert('Archivo descargado con éxito.', false);
+  } catch (error) {
+    console.error(error);
+    showAlert('Error de autenticación. Por favor, vuelve a iniciar sesión.', true);
   }
 };
 

@@ -6,6 +6,7 @@ import axios from 'axios';
 import SecuritySetup from './Components/SecuritySetup.vue';
 import AuditoriaPanel from './Components/AuditoriaPanel.vue';
 import BackupPanel from './Components/BackupPanel.vue';
+import PreguntasPanel from './Components/PreguntasPanel.vue';
 
 
 const token = localStorage.getItem('access_token'); 
@@ -47,7 +48,8 @@ createApp({
         TicketDashboard,
         SecuritySetup,
         AuditoriaPanel,
-        BackupPanel
+        BackupPanel,
+        PreguntasPanel,
 
     },
     setup() {

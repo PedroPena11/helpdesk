@@ -35,41 +35,41 @@ class BackupController extends Controller
 
         $timestamp = date('Ymd_His');
         $filename = "backup_{$request->type}_{$timestamp}.sql";
-        
+
         if (!Storage::disk('backups')->exists('')) {
             Storage::disk('backups')->makeDirectory('');
         }
-        
+
         $filePath = storage_path("app/backups/{$filename}");
 
         try {
-            
+
             $handle = fopen($filePath, 'w+');
-            
+
             fwrite($handle, "-- RESPALDO DE BASE DE DATOS POSTGRESQL\n");
             fwrite($handle, "-- Generado nativamente desde Laravel el " . date('Y-m-d H:i:s') . "\n");
             fwrite($handle, "-- Tipo: " . strtoupper($request->type) . "\n\n");
-            
-           
+
+
             $tables = DB::select("
                 SELECT tablename AS table_name 
                 FROM pg_catalog.pg_tables 
                 WHERE schemaname = 'public'
             ");
 
-            
+
             if (empty($tables)) {
                 $tables = DB::connection()->getDoctrineSchemaManager()->listTableNames();
-               
+
                 $tables = array_map(fn($name) => (object)['table_name' => $name], $tables);
             }
 
             foreach ($tables as $table) {
                 $tableName = $table->table_name;
-                
-               
+
+
                 if ($tableName === 'auditorias') {
-                    continue; 
+                    continue;
                 }
 
                 fwrite($handle, "-- --------------------------------------------------\n");
@@ -77,9 +77,9 @@ class BackupController extends Controller
                 fwrite($handle, "-- --------------------------------------------------\n");
                 fwrite($handle, "DROP TABLE IF EXISTS \"{$tableName}\" CASCADE;\n\n");
 
-                
+
                 fwrite($handle, "CREATE TABLE \"{$tableName}\" (\n");
-                
+
                 $columns = DB::select("
                     SELECT column_name, data_type, is_nullable
                     FROM information_schema.columns 
@@ -94,22 +94,22 @@ class BackupController extends Controller
                     }
                     $colDefinitions[] = $def;
                 }
-                
+
                 fwrite($handle, implode(",\n", $colDefinitions) . "\n);\n\n");
 
-                
+
                 if ($request->type === 'completo') {
-                    
+
                     $rows = DB::table($tableName)->get();
 
                     if ($rows->count() > 0) {
                         fwrite($handle, "-- Volcado de datos ({$rows->count()} registros)\n");
-                        
+
                         foreach ($rows as $row) {
                             $rowArray = (array)$row;
                             $columnsMapped = array_keys($rowArray);
-                            
-                            $valuesMapped = array_map(function($value) {
+
+                            $valuesMapped = array_map(function ($value) {
                                 if (is_null($value)) return 'NULL';
                                 if (is_bool($value)) return $value ? 'TRUE' : 'FALSE';
                                 return "'" . str_replace("'", "''", $value) . "'";
@@ -117,7 +117,7 @@ class BackupController extends Controller
 
                             $insColumns = implode(', ', array_map(fn($c) => "\"{$c}\"", $columnsMapped));
                             $insValues = implode(', ', $valuesMapped);
-                            
+
                             fwrite($handle, "INSERT INTO \"{$tableName}\" ({$insColumns}) VALUES ({$insValues});\n");
                         }
                     }
@@ -125,16 +125,14 @@ class BackupController extends Controller
                 }
             }
 
-            
+
             fflush($handle);
             fclose($handle);
-
         } catch (\Exception $e) {
-
         } catch (\Exception $e) {
             if (isset($handle)) fclose($handle);
             if (file_exists($filePath)) unlink($filePath);
-            
+
             Log::error("Error en Backup Manual PHP: " . $e->getMessage());
             return response()->json([
                 'message' => 'Error interno al procesar el volcado de datos.',
@@ -142,15 +140,15 @@ class BackupController extends Controller
             ], 500);
         }
 
-       
+
         \App\Models\Auditoria::registrar(
-            auth()->id(), 
-            'BACKUP_GENERADO', 
+            auth()->id(),
+            'BACKUP_GENERADO',
             "Se generó un respaldo de tipo [{$request->type}] bajo el nombre: {$filename} (Script PHP)"
         );
 
         return response()->json([
-            'message' => 'Respaldo criptográfico generado con éxito (Vía PDO).', 
+            'message' => 'Respaldo criptográfico generado con éxito (Vía PDO).',
             'filename' => $filename
         ]);
     }
@@ -158,11 +156,25 @@ class BackupController extends Controller
 
     public function download($filename)
     {
-        if (!Storage::disk('backups')->exists($filename)) {
-            return response()->json(['message' => 'El archivo no existe.'], 404);
+       
+        if (str_contains($filename, '..') || str_contains($filename, '/') || str_contains($filename, '\\')) {
+            abort(403, 'Acceso no autorizado.');
         }
 
-        return Storage::disk('backups')->download($filename);
+        $disk = Storage::disk('backups');
+
+      
+        if (!$disk->exists($filename)) {
+            abort(404, 'El archivo de respaldo no existe en el almacenamiento.');
+        }
+
+        
+        $filePath = $disk->path($filename);
+
+        
+        return response()->download($filePath, $filename, [
+            'Content-Type' => 'text/plain',
+        ]);
     }
 
 
