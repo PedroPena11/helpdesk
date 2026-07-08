@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Auditoria;
 use App\Models\PreguntaSeguridad;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -37,7 +38,7 @@ use Illuminate\Support\Facades\DB;
             'question' => $request->question
         ]);
 
-        \App\Models\Auditoria::registrar(auth()->id(), 'PREGUNTA_CREADA', "Se creó la pregunta de seguridad: ID {$pregunta->id}");
+        Auditoria::registrar(auth()->id(), 'PREGUNTA_CREADA', "Se creó la pregunta de seguridad: ID {$pregunta->id}");
 
         return response()->json(['message' => 'Pregunta agregada con éxito.', 'data' => $pregunta], 201);
     }
@@ -52,7 +53,7 @@ use Illuminate\Support\Facades\DB;
 
         $pregunta->update($request->only(['question']));
 
-        \App\Models\Auditoria::registrar(auth()->id(), 'PREGUNTA_MODIFICADA', "Se modificó la pregunta de seguridad ID {$id}");
+        Auditoria::registrar(auth()->id(), 'PREGUNTA_MODIFICADA', "Se modificó la pregunta de seguridad ID {$id}");
 
         return response()->json(['message' => 'Pregunta actualizada con éxito.']);
     }
@@ -63,7 +64,7 @@ use Illuminate\Support\Facades\DB;
         
         $pregunta->delete();
 
-        \App\Models\Auditoria::registrar(auth()->id(), 'PREGUNTA_ELIMINADA', "Se eliminó la pregunta de seguridad ID {$id}");
+        Auditoria::registrar(auth()->id(), 'PREGUNTA_ELIMINADA', "Se eliminó la pregunta de seguridad ID {$id}");
 
         return response()->json(['message' => 'Pregunta eliminada con éxito.']);
     }

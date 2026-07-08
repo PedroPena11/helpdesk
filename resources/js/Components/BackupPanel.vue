@@ -57,6 +57,13 @@
             <td class="text-muted">{{ backup.date }}</td>
             <td class="text-end">
               <div class="btn-group btn-group-sm">
+                <!-- 🌟 NUEVO: Acción de Restauración -->
+                <button class="btn btn-outline-warning text-dark" 
+                        @click="openRestoreConfirmation(backup.filename)" 
+                        title="Restaurar base de datos"
+                        :disabled="restoreLoading">
+                  <i class="bi bi-arrow-counterclockwise fw-bold"></i>
+                </button>
                 <!-- Descarga Directa -->
                 <a @click="downloadBackup(backup.filename)" 
                    class="btn btn-outline-dark" 
@@ -75,12 +82,50 @@
         </tbody>
       </table>
     </div>
+
+    <!-- 🌟 NUEVO: MODAL DE CONFIRMACIÓN PARA RESTAURAR -->
+    <div class="modal fade" id="restoreConfirmModal" tabindex="-1" aria-hidden="true" ref="restoreModalRef">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+          <div class="modal-header bg-warning text-dark">
+            <h5 class="modal-title fw-bold"><i class="bi bi-exclamation-triangle-fill me-2"></i> Confirmar Restauración</h5>
+            <button type="button" class="btn-close" @click="closeRestoreModal"></button>
+          </div>
+          <div class="modal-body text-start">
+            <p class="small text-secondary">Estás a punto de sobreescribir el estado actual del sistema utilizando el script SQL:</p>
+            <div class="alert alert-light border fw-bold font-monospace text-center text-dark py-2 small mb-3">
+              {{ selectedBackup }}
+            </div>
+            
+            <!-- CASO DE USO EXIGIDO: CHECKBOX DE LIMPIEZA -->
+            <div class="form-check form-switch p-3 bg-light rounded border border-danger-subtle">
+              <input class="form-check-input ms-0 me-2" type="checkbox" id="checkClearDb" v-model="restoreForm.clear_db">
+              <label class="form-check-label text-danger fw-bold small" for="checkClearDb">
+                ⚠️ Limpiar/Vaciar BD antes de restaurar
+              </label>
+              <div class="text-muted mt-1" style="font-size: 0.75rem; margin-left: 0.25rem;">
+                Eliminará el esquema público (DROP SCHEMA) y recreará las tablas limpias para evitar colisiones estables de llaves primarias duplicadas.
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer bg-light py-2">
+            <button type="button" class="btn btn-sm btn-secondary" @click="closeRestoreModal" :disabled="restoreLoading">Cancelar</button>
+            <button type="button" class="btn btn-sm btn-danger fw-bold" :disabled="restoreLoading" @click="executeRestore">
+              <span v-if="restoreLoading" class="spinner-border spinner-border-sm me-1"></span>
+              <i v-else class="bi bi-lightning-charge-fill me-1"></i> Ejecutar Restore
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue';
 import axios from 'axios';
+import { Modal } from 'bootstrap';
 
 const backups = ref([]);
 const loading = ref(false);
@@ -88,6 +133,13 @@ const actionLoading = ref(false);
 const alertMessage = ref('');
 const isError = ref(false);
 
+const selectedBackup = ref('');
+const restoreLoading = ref(false);
+const restoreModalRef = ref(null);
+let bootstrapRestoreModal = null;
+const restoreForm = ref({
+  clear_db: false
+});
 
 const fetchBackups = async () => {
   loading.value = true;
@@ -100,7 +152,6 @@ const fetchBackups = async () => {
     loading.value = false;
   }
 };
-
 
 const generateBackup = async (type) => {
   actionLoading.value = true;
@@ -118,6 +169,44 @@ const generateBackup = async (type) => {
 };
 
 
+const openRestoreConfirmation = (filename) => {
+  selectedBackup.value = filename;
+  restoreForm.value.clear_db = false;
+  
+  if (restoreModalRef.value && !bootstrapRestoreModal) {
+    bootstrapRestoreModal = new Modal(restoreModalRef.value);
+  }
+  bootstrapRestoreModal?.show();
+};
+
+const closeRestoreModal = () => {
+  if (bootstrapRestoreModal) {
+    bootstrapRestoreModal.hide();
+  }
+};
+
+const executeRestore = async () => {
+  restoreLoading.value = true;
+  showAlert('Iniciando subproceso de reconstrucción en PostgreSQL...', false);
+  
+  try {
+    const response = await axios.post('/api/admin/backups/restore', {
+      filename: selectedBackup.value,
+      clear_db: restoreForm.value.clear_db
+    });
+    
+    showAlert(response.data.message || 'Base de datos restaurada con éxito.', false);
+    closeRestoreModal();
+    await fetchBackups();
+  } catch (error) {
+    const errorMsg = error.response?.data?.error || 'Error desconocido al procesar el script SQL.';
+    showAlert(`Fallo crítico en Restore: ${errorMsg}`, true);
+    closeRestoreModal();
+  } finally {
+    restoreLoading.value = false;
+  }
+};
+
 const deleteBackup = async (filename) => {
   if (!confirm(`¿Estás seguro de eliminar de forma permanente el respaldo: ${filename}?`)) return;
 
@@ -126,19 +215,16 @@ const deleteBackup = async (filename) => {
     showAlert(response.data.message, false);
     await fetchBackups();
   } catch (error) {
-    const errorDetalle = error.response?.data?.error_puro_windows || 'Error sin detalle.';
-    const mensajeBase = error.response?.data?.message || 'Error crítico.';
+    showAlert(error.response?.data?.message || 'Error crítico al eliminar.', true);
   }
 };
 
 const downloadBackup = async (filename) => {
   try {
-    
     const response = await axios.get(`/api/admin/backups/download/${filename}`, {
       responseType: 'blob' 
     });
 
-    
     const url = window.URL.createObjectURL(new Blob([response.data]));
     const link = document.createElement('a');
     link.href = url;
@@ -146,23 +232,21 @@ const downloadBackup = async (filename) => {
     document.body.appendChild(link);
     link.click();
     
-    
     link.remove();
     window.URL.revokeObjectURL(url);
 
     showAlert('Archivo descargado con éxito.', false);
   } catch (error) {
     console.error(error);
-    showAlert('Error de autenticación. Por favor, vuelve a iniciar sesión.', true);
+    showAlert('Error al descargar el archivo de respaldo.', true);
   }
 };
-
 
 const showAlert = (message, errorStatus) => {
   alertMessage.value = message;
   isError.value = errorStatus;
   if (!errorStatus) {
-    setTimeout(() => { alertMessage.value = ''; }, 5000);
+    setTimeout(() => { alertMessage.value = ''; }, 6000);
   }
 };
 
