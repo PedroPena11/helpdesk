@@ -6,8 +6,11 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use App\Models\Auditoria;
+use Exception;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Laravel\Reverb\Loggers\Log;
+use Symfony\Component\Process\Process;
 
 class BackupController extends Controller
 {
@@ -156,27 +159,26 @@ class BackupController extends Controller
 
     public function download($filename)
     {
-       
+
         if (str_contains($filename, '..') || str_contains($filename, '/') || str_contains($filename, '\\')) {
             abort(403, 'Acceso no autorizado.');
         }
 
         $disk = Storage::disk('backups');
 
-      
+
         if (!$disk->exists($filename)) {
             abort(404, 'El archivo de respaldo no existe en el almacenamiento.');
         }
 
-        
+
         $filePath = $disk->path($filename);
 
-        
+
         return response()->download($filePath, $filename, [
             'Content-Type' => 'text/plain',
         ]);
     }
-
 
     public function destroy($filename)
     {
@@ -193,5 +195,84 @@ class BackupController extends Controller
         );
 
         return response()->json(['message' => 'Archivo de respaldo removido del sistema.']);
+    }
+
+    public function restore(Request $request)
+    {
+        $request->validate([
+            'filename' => 'required|string',
+            'clear_db' => 'required|boolean'
+        ]);
+
+        $filename = $request->filename;
+        $filePath = storage_path("app/backups/{$filename}");
+
+        if (!file_exists($filePath)) {
+            return response()->json(['message' => 'El archivo de respaldo seleccionado no existe.'], 404);
+        }
+
+        try {
+            $dbConfig = config('database.connections.pgsql');
+            $username = $dbConfig['username'];
+
+            // 1. CASO DE USO: LIMPIEZA PREVIA DEL ESQUEMA
+            if ($request->clear_db) {
+                DB::statement('DROP SCHEMA public CASCADE;');
+                DB::statement('CREATE SCHEMA public;');
+                DB::statement('GRANT ALL ON SCHEMA public TO public;');
+                DB::statement('GRANT ALL ON SCHEMA public TO ' . $username . ';');
+            }
+
+            // 2. LECTURA E INYECCIÓN NATIVA (Sin usar psql ni consolas de Windows)
+            $sqlContenido = file_get_contents($filePath);
+
+            if (empty(trim($sqlContenido))) {
+                throw new \Exception("El archivo de respaldo está completamente vacío.");
+            }
+
+            // Ejecuta todo el script SQL directamente sobre la conexión actual de Postgres
+            DB::unprepared($sqlContenido);
+
+            // 3. SINCRONIZACIÓN AUTOMÁTICA DE SECUENCIAS
+            $statements = DB::select("
+            SELECT 'SELECT setval(''' || c.relname || ''', COALESCE(MAX(' || a.attname || '), 1) + 1, false) FROM ' || t.relname AS query
+            FROM pg_class c
+            JOIN pg_depend d ON d.objid = c.oid
+            JOIN pg_class t ON t.oid = d.refobjid
+            JOIN pg_attribute a ON a.attrelid = d.refobjid AND a.attnum = d.refobjsubid
+            WHERE c.relkind = 'S' AND t.relkind = 'r' AND d.deptype = 'a';
+        ");
+
+            foreach ($statements as $stmt) {
+                DB::statement($stmt->query);
+            }
+
+            // 4. REGISTRO DE AUDITORÍA
+            try {
+                \App\Models\Auditoria::registrar(
+                    auth()->id(),
+                    'BD_RESTAURADA',
+                    "Se restauró la base de datos de forma nativa desde el archivo: {$filename}."
+                );
+            } catch (\Exception $auditoriaError) {
+                \Log::error("No se pudo registrar la auditoría del restore: " . $auditoriaError->getMessage());
+            }
+
+            return response()->json(['message' => 'Base de datos restaurada y secuencias sincronizadas con éxito.']);
+        } catch (\Exception $e) {
+            // Si algo falla, intentamos levantar el entorno para que no te quedes bloqueado afuera
+            if ($request->clear_db) {
+                try {
+                    Artisan::call('migrate --seed');
+                } catch (\Exception $migError) {
+                    Log::error("No se pudo ejecutar el fallback de migración: " . $migError->getMessage());
+                }
+            }
+
+            return response()->json([
+                'message' => 'Fallo crítico en el proceso de restauración del script.',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 }

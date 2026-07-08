@@ -13,10 +13,10 @@
             <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
         </div>
 
-        <!-- Contenedor con altura fija y scroll vertical para mantener el Dashboard compacto -->
+    
         <div v-else class="table-responsive shadow-sm border rounded-3" style="max-height: 400px; overflow-y: auto;">
             <table class="table table-hover align-middle small m-0">
-                <!-- table-sticky hace que los encabezados se queden fijos arriba al hacer scroll -->
+                
                 <thead class="table-light sticky-top" style="z-index: 1;">
                     <tr>
                         <th>Fecha / Hora</th>

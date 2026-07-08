@@ -37,6 +37,7 @@ Route::middleware(['auth:sanctum', AdvancedSessionControl::class])->group(functi
         Route::get('/admin/backups', [BackupController::class, 'index']);
         Route::post('/admin/backups', [BackupController::class, 'create']);
         Route::get('/admin/backups/download/{filename}', [BackupController::class, 'download']);
+        Route::post('/admin/backups/restore', [BackupController::class, 'restore']);
         Route::delete('/admin/backups/{filename}', [BackupController::class, 'destroy']);
         Route::post('/preguntas-seguridad', [PreguntaSeguridadController::class, 'store']);       
         Route::put('/preguntas-seguridad/{id}', [PreguntaSeguridadController::class, 'update']);   
